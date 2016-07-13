@@ -1,6 +1,8 @@
-# Purl
+# Purl 
 
 A asynchronous http client without php-curl extension.
+
+[![Build Status](https://travis-ci.org/pengzhile/purl.svg?branch=master)](https://travis-ci.org/pengzhile/purl)
 
 ## 特点
 * 异步请求
@@ -9,8 +11,8 @@ A asynchronous http client without php-curl extension.
 * 无需PHP CURL扩展
 
 ```php
-use Purl\AsyncClient;
-use Purl\Result;
+use purl\AsyncClient;
+use purl\Result;
 
 $requestIds = array();
 $client = new AsyncClient();

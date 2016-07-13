@@ -53,7 +53,7 @@ class AsyncClient implements IClient
      * @param array|null $headers
      * @return int
      */
-    public function addGet($url, callable $callback, array $headers = array())
+    public function addGet($url, $callback, array $headers = array())
     {
         return $this->add(0, Request::METHOD_GET, $url, $callback, $headers);
     }
@@ -65,7 +65,7 @@ class AsyncClient implements IClient
      * @param array|null $headers
      * @return int
      */
-    public function addPost($url, callable $callback, array $data = array(), array $headers = array())
+    public function addPost($url, $callback, array $data = array(), array $headers = array())
     {
         return $this->add(0, Request::METHOD_POST, $url, $callback, $headers, $data);
     }
@@ -73,7 +73,7 @@ class AsyncClient implements IClient
     /**
      * @param callable|null $sentCallback
      */
-    public function request(callable $sentCallback = null)
+    public function request($sentCallback = null)
     {
         if (!$this->requests) {
             return;
@@ -132,7 +132,7 @@ class AsyncClient implements IClient
         return $this->streamFlag;
     }
 
-    protected function add($id, $method, $url, callable $callback, array $headers, array $data = array())
+    protected function add($id, $method, $url, $callback, array $headers, array $data = array())
     {
         $request = new Request($this, $id, $method, $url, $headers, $data);
         $this->requests[$request->getStreamId()] = $request;
@@ -182,7 +182,10 @@ class AsyncClient implements IClient
         return $streams;
     }
 
-    protected function send(callable $sentCallback = null)
+    /**
+     * @param callable $sentCallback
+     */
+    protected function send($sentCallback = null)
     {
         $sentStreams = array();
 

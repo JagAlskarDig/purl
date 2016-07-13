@@ -267,17 +267,22 @@ class Request
     {
         if ($this->isHttps) {
             $remote = 'tls://' . $this->ip . ':' . $this->port;
-            $context = stream_context_create(array(
+            
+            $options = array(
                 'ssl' => array(
                     'peer_name' => $this->host,
-                    'CN_match' => $this->host,
                     'disable_compression' => true,
                     'cafile' => __DIR__ . '/cacert.pem',
                     'verify_peer' => $this->verifyCert,
                     'verify_peer_name' => $this->verifyCert,
                     'allow_self_signed' => !$this->verifyCert,
                 )
-            ));
+            );
+            if (PHP_VERSION_ID < 50600) {
+                $options['ssl']['CN_match'] = $this->host;
+            }
+            
+            $context = stream_context_create($options);
         } else {
             $remote = 'tcp://' . $this->ip . ':' . $this->port;
             $context = stream_context_create();
