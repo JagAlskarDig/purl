@@ -210,7 +210,7 @@ class AsyncClient implements IClient
         } while (true);
 
         if ($sentCallback) {
-            $sentCallback($sentStreams);
+            call_user_func($sentCallback, $sentStreams);
         }
     }
 }
