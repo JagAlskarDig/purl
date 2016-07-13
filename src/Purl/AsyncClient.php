@@ -147,12 +147,13 @@ class AsyncClient implements IClient
             return false;
         }
 
+        $h = $e = null;
         $originStreams = $streams;
         $timeStart = microtime(true);
         if ($isRead) {
-            stream_select($streams, $w = null, $e = null, 0, $timeout);
+            stream_select($streams, $h, $e, 0, $timeout);
         } else {
-            stream_select($r = null, $streams, $e = null, 0, $timeout);
+            stream_select($h, $streams, $e, 0, $timeout);
         }
         $timeSpent = microtime(true) - $timeStart;
         $timeSpent = ceil($timeSpent * 1000000);
