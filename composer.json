@@ -4,7 +4,7 @@
     "keywords": ["http", "client", "curl", "asynchronous"],
     "type": "library",
     "homepage": "http://github.com/pengzhile/purl",
-    "license": "GPL2",
+    "license": "GPL-2.0",
     "authors": [
         {
             "name": "pengzhile",
@@ -26,7 +26,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "0.1.0"
+            "dev-master": "0.1.x-dev"
         }
     }
 }
