@@ -17,20 +17,23 @@ use Purl\Result;
 class RequestTest extends PHPUnit_Framework_TestCase
 {
     protected $requestIds = array();
-    protected $requestCalled = false;
+    protected $requestCalled = 0;
 
     public function testNewClient()
     {
         $oldER = error_reporting(-1);
-        
+
         $client = new AsyncClient();
 
         $this->requestIds[] = $client->addGet('http://blog.csdn.net/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
+        $this->requestIds[] = $client->addGet('https://github.com/', array($this, 'requestCallback'),
+            array('Accept' => 'text/html'));
+
         $client->request(array($this, 'sentCallback'));
-        $this->assertTrue($this->requestCalled, 'request callback missed');
-        
+        $this->assertCount($this->requestCalled, $this->requestIds, 'request callback missed');
+
         error_reporting($oldER);
     }
 
@@ -44,6 +47,6 @@ class RequestTest extends PHPUnit_Framework_TestCase
         $this->assertTrue($id > 0);
         $this->assertNotNull($result, 'result is null');
 
-        $this->requestCalled = true;
+        $this->requestCalled++;
     }
 }
