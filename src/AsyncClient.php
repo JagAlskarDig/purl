@@ -60,13 +60,16 @@ class AsyncClient implements IClient
         return $this->add(0, Request::METHOD_POST, $url, $callback, $headers, $data);
     }
 
-
     /**
-     * @param callable|null $sendComplete
+     * @param callable|null $sentCallback
      */
-    public function request(callable $sendComplete = null)
+    public function request(callable $sentCallback = null)
     {
-        $this->send($sendComplete);
+        if (!$this->requests) {
+            return;
+        }
+
+        $this->send($sentCallback);
 
         do {
             $r = array();
@@ -169,7 +172,7 @@ class AsyncClient implements IClient
         return $streams;
     }
 
-    protected function send(callable $sendComplete = null)
+    protected function send(callable $sentCallback = null)
     {
         $sentStreams = array();
 
@@ -193,8 +196,8 @@ class AsyncClient implements IClient
             }
         } while (true);
 
-        if ($sendComplete) {
-            $sendComplete($sentStreams);
+        if ($sentCallback) {
+            $sentCallback($sentStreams);
         }
     }
 }

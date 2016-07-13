@@ -57,7 +57,7 @@ class StreamParser
             if (false === strpos($this->buffer, "\r\n")) {
                 return null;
             }
-            
+
             list($size, $content) = explode("\r\n", $this->buffer, 2);
             if (0 === $size = hexdec($size)) {
                 return new Result($this->version, $this->code, $this->msg, $this->headers, $this->body);

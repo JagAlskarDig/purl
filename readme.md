@@ -9,8 +9,8 @@ A asynchronous http client without php-curl extension.
 * 无需PHP CURL扩展
 
 ```php
-use purl\AsyncClient;
-use purl\Result;
+use Purl\AsyncClient;
+use Purl\Result;
 
 $requestIds = array();
 $client = new AsyncClient();
