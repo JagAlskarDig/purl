@@ -4,7 +4,7 @@
     "keywords": ["http", "client", "curl", "asynchronous"],
     "type": "library",
     "homepage": "http://github.com/pengzhile/purl",
-    "license": "MIT",
+    "license": "GPL2",
     "authors": [
         {
             "name": "pengzhile",
