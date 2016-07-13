@@ -21,6 +21,8 @@ class RequestTest extends PHPUnit_Framework_TestCase
 
     public function testNewClient()
     {
+        $oldER = error_reporting(-1);
+        
         $client = new AsyncClient();
 
         $this->requestIds[] = $client->addGet('http://blog.csdn.net/', array($this, 'requestCallback'),
@@ -28,6 +30,8 @@ class RequestTest extends PHPUnit_Framework_TestCase
 
         $client->request(array($this, 'sentCallback'));
         $this->assertTrue($this->requestCalled, 'request callback missed');
+        
+        error_reporting($oldER);
     }
 
     public function sentCallback(array $ids)
