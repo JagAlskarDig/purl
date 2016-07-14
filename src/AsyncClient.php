@@ -2,12 +2,12 @@
 /**
  * This file is part of the Purl package.
  * Copyright (C) 2016 pengzhile <pengzhile@gmail.com>
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -20,17 +20,36 @@
 
 namespace Purl;
 
-class AsyncClient implements IClient
+class AsyncClient
 {
     /**
      * @var bool
      */
     protected $verifyCert;
+
+    /**
+     * @var int
+     */
     protected $streamFlag;
+
+    /**
+     * @var int
+     */
     protected $connTimeout;
+
+    /**
+     * @var int
+     */
     protected $readTimeout;
 
-    protected $requests = array();
+    /**
+     * @var array
+     */
+    protected $streams = array();
+
+    /**
+     * @var array
+     */
     protected $callbacks = array();
 
     /**
@@ -55,7 +74,7 @@ class AsyncClient implements IClient
      */
     public function addGet($url, $callback, array $headers = array())
     {
-        return $this->add(0, Request::METHOD_GET, $url, $callback, $headers);
+        return $this->add(Request::METHOD_GET, $url, $callback, $headers);
     }
 
     /**
@@ -67,7 +86,7 @@ class AsyncClient implements IClient
      */
     public function addPost($url, $callback, array $data = array(), array $headers = array())
     {
-        return $this->add(0, Request::METHOD_POST, $url, $callback, $headers, $data);
+        return $this->add(Request::METHOD_POST, $url, $callback, $headers, $data);
     }
 
     /**
@@ -75,7 +94,7 @@ class AsyncClient implements IClient
      */
     public function request($sentCallback = null)
     {
-        if (!$this->requests) {
+        if (!$this->streams) {
             return;
         }
 
@@ -83,8 +102,13 @@ class AsyncClient implements IClient
 
         do {
             $r = array();
-            foreach ($this->requests as $k => $v) {
-                $r[] = $v->getStream();
+            /**
+             * @var Stream $stream
+             */
+            foreach ($this->streams as $stream) {
+                if (!$stream->isClosed()) {
+                    $r[] = $stream->getResource();
+                }
             }
 
             if (!$r = $this->queryTimeout($r, $this->connTimeout)) {
@@ -92,66 +116,53 @@ class AsyncClient implements IClient
             }
 
             foreach ($r as $fp) {
-                $fd = (int)$fp;
-                $request = $this->requests[$fd];
-                $result = $request->read();
+                $stream = $this->streams[(int)$fp];
+                $result = $stream->read();
 
-                if (null === $result) {
+                if ($stream->isClosed()) {
+                    $this->close($stream, false);
+                    continue;
+                }
+
+                if (false === $result) {
                     continue;
                 }
 
                 if ($result instanceof Result) {
-                    call_user_func($this->callbacks[$request->getStreamId()], $request->getId(), $result);
+                    call_user_func($this->callbacks[$stream->getResourceId()], $stream->getId(), $result);
                 }
-                $this->close($request);
+                $this->close($stream);
             }
         } while (true);
     }
 
-    /**
-     * @return int
-     */
-    public function getConnTimeout()
+    protected function add($method, $url, $callback, array $headers, array $data = null)
     {
-        return $this->connTimeout;
+        static $id = 0;
+
+        $urlInfo = new UrlInfo($url);
+        $https = 'https' === $urlInfo->getScheme();
+        $stream = new Stream(++$id, $urlInfo->getHost(), $urlInfo->getPort(), $this->streamFlag, $this->connTimeout,
+            $this->readTimeout, $https, $this->verifyCert);
+        $stream->addRequest(new Request($method, $urlInfo, $headers, $data));
+
+        $this->streams[$stream->getResourceId()] = $stream;
+        $this->callbacks[$stream->getResourceId()] = $callback;
+
+        return $id;
     }
 
-    /**
-     * @return boolean
-     */
-    public function isVerifyCert()
+    protected function close(Stream $stream, $success = true)
     {
-        return $this->verifyCert;
-    }
-
-    /**
-     * @return int
-     */
-    public function getStreamFlag()
-    {
-        return $this->streamFlag;
-    }
-
-    protected function add($id, $method, $url, $callback, array $headers, array $data = array())
-    {
-        $request = new Request($this, $id, $method, $url, $headers, $data);
-        $this->requests[$request->getStreamId()] = $request;
-        $this->callbacks[$request->getStreamId()] = $callback;
-
-        return $request->getId();
-    }
-
-    protected function close(Request $request, $success = true)
-    {
-        $ret = $request->close();
-        $streamId = $request->getStreamId();
+        $stream->close();
+        $streamId = $stream->getResourceId();
         if (!$success) {
-            call_user_func($this->callbacks[$streamId], $request->getId(), null);
+            call_user_func($this->callbacks[$streamId], $stream->getId(), null);
         }
 
-        unset($this->requests[$streamId], $this->callbacks[$streamId]);
+        unset($this->streams[$streamId], $this->callbacks[$streamId]);
 
-        return $ret;
+        return true;
     }
 
     protected function queryTimeout(array $streams, $timeout, $isRead = true)
@@ -172,10 +183,12 @@ class AsyncClient implements IClient
         $timeSpent = ceil($timeSpent * 1000000);
 
         foreach ($originStreams as $fp) {
-            $fd = (int)$fp;
-            $request = $this->requests[$fd];
-            if ($request->addTimer($timeSpent, $isRead) >= $timeout) {
-                $this->close($request, false);
+            /**
+             * @var Stream $stream
+             */
+            $stream = $this->streams[(int)$fp];
+            if ($stream->addTimer($timeSpent, $isRead) >= $timeout) {
+                $this->close($stream, false);
             }
         }
 
@@ -191,9 +204,12 @@ class AsyncClient implements IClient
 
         do {
             $w = array();
-            foreach ($this->requests as $request) {
-                if ($request->needSend()) {
-                    $w[] = $request->getStream();
+            /**
+             * @var Stream $stream
+             */
+            foreach ($this->streams as $stream) {
+                if ($stream->needSend()) {
+                    $w[] = $stream->getResource();
                 }
             }
 
@@ -202,9 +218,16 @@ class AsyncClient implements IClient
             }
 
             foreach ($w as $fp) {
-                $request = $this->requests[(int)$fp];
-                if (true === $request->send()) {
-                    $sentStreams[] = $request->getId();
+                $stream = $this->streams[(int)$fp];
+                $ret = $stream->send();
+
+                if ($stream->isClosed()) {
+                    $this->close($stream, false);
+                    continue;
+                }
+
+                if (true === $ret) {
+                    $sentStreams[] = $stream->getId();
                 }
             }
         } while (true);

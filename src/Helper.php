@@ -20,11 +20,44 @@
 
 namespace Purl;
 
-interface IClient
+use Exception;
+
+class Helper
 {
-    public function isVerifyCert();
+    protected static $dnsCache = array();
 
-    public function getStreamFlag();
+    /**
+     * @param bool $cond
+     * @param string $message
+     * @throws Exception
+     */
+    public static function assert($cond, $message)
+    {
+        if ($cond) {
+            return;
+        }
 
-    public function getConnTimeout();
+        throw new Exception($message);
+    }
+
+    /**
+     * @param string $host
+     * @return bool|string
+     */
+    public static function host2ip($host)
+    {
+        $host = strtolower($host);
+        if (isset(self::$dnsCache[$host])) {
+            return self::$dnsCache[$host];
+        }
+
+        $ip = gethostbyname($host);
+        if (false === ip2long($ip)) {
+            return false;
+        }
+
+        self::$dnsCache[$host] = $ip;
+
+        return $ip;
+    }
 }

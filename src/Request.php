@@ -20,40 +20,62 @@
 
 namespace Purl;
 
-use Exception;
-
 class Request
 {
     const USER_AGENT = 'Purl/1.0';
-    const READ_BUFSIZ = 65536;
-    const METHOD_POST = 'POST';
+
     const METHOD_GET = 'GET';
+    const METHOD_POST = 'POST';
+    const METHOD_PUT = 'PUT';
+    const METHOD_DELETE = 'DELETE';
 
-    protected static $dnsCache = array();
-    protected static $lastId = 0;
+    /**
+     * @var string
+     */
+    protected $content;
 
-    protected $client;
-    protected $parser;
-    protected $verifyCert;
-    protected $streamFlag;
-    protected $connTimeout;
-    protected $sendBuffer = '';
-    protected $connTimer = 0;
-    protected $readTimer = 0;
+    /**
+     * @var bool
+     */
+    protected $http;
+    /**
+     * @var bool
+     */
+    protected $https;
 
-    protected $id;
-    protected $stream;
-    protected $streamId;
-    protected $isHttp;
-    protected $isHttps;
-    protected $scheme;
-    protected $host;
-    protected $ip;
-    protected $port;
+    /**
+     * @var string
+     */
     protected $method;
+
+    /**
+     * @var string
+     */
+    protected $scheme;
+
+    /**
+     * @var string
+     */
+    protected $host;
+
+    /**
+     * @var int
+     */
+    protected $port;
+
+    /**
+     * @var string
+     */
     protected $uri;
-    protected $url;
-    protected $posts;
+
+    /**
+     * @var array
+     */
+    protected $posts = array();
+
+    /**
+     * @var array
+     */
     protected $headers = array(
         'Cache-Control' => 'no-cache',
         'Pragma' => 'no-cache',
@@ -63,242 +85,136 @@ class Request
 
     /**
      * Request constructor.
-     * @param IClient $client
-     * @param int $id
      * @param string $method
-     * @param string $url
+     * @param UrlInfo $urlInfo
      * @param array $headers
      * @param array $posts
      */
-    public function __construct(IClient $client, $id, $method, $url, array $headers, array $posts)
+    public function __construct($method, UrlInfo $urlInfo, array $headers = null, array $posts = null)
     {
-        $this->client = $client;
-        $this->parser = new StreamParser();
-        $this->verifyCert = $client->isVerifyCert();
-        $this->streamFlag = $client->getStreamFlag();
-        $this->connTimeout = $client->getConnTimeout() / 1000000;
-
-        if ($id = (int)$id) {
-            $this->id = $id;
-            if ($id > self::$lastId) {
-                self::$lastId = $id;
-            }
-        } else {
-            $this->id = ++self::$lastId;
-        }
-
-        $this->url = $url;
         $this->method = $method;
-        $this->posts = $posts;
 
+        $this->scheme = $urlInfo->getScheme();
+        $this->http = 'http' === $this->scheme;
+        $this->https = 'https' === $this->scheme;
+
+        $this->host = $urlInfo->getHost();
+        $this->port = $urlInfo->getPort();
+        $this->uri = $urlInfo->getPath() . $urlInfo->getQuery();
+
+        $posts && $this->posts = $posts;
         if ($headers) {
             $this->headers = $headers + $this->headers;
         }
-
-        $this->parseUrl();
-        $this->initStream();
-        $this->buildHttpRequest();
     }
 
     /**
      * @return bool
      */
-    public function send()
+    public function isHttp()
     {
-        $buffer = $this->sendBuffer;
-        $len = fwrite($this->stream, $buffer);
-
-        if (strlen($buffer) === $len) {
-            $this->sendBuffer = '';
-
-            return true;
-        }
-
-        if (false === $len) {
-            $this->sendBuffer = '';
-
-            return false;
-        }
-
-        $this->sendBuffer = substr($buffer, 0, $len);
-
-        return false;
+        return $this->http;
     }
 
     /**
      * @return bool
      */
-    public function read()
+    public function isHttps()
     {
-        $first = true;
-        $buffer = '';
-        do {
-            $ret = fread($this->stream, self::READ_BUFSIZ);
-            if ('' === $ret || false === $ret) {
-                if ($first) {
-                    return true;
-                }
-                break;
-            }
-
-            $buffer .= $ret;
-            $first = false;
-        } while (true);
-
-        return $this->parser->tryParse($buffer);
+        return $this->https;
     }
 
     /**
-     * @return bool
+     * @return string
      */
-    public function close()
+    public function getMethod()
     {
-        return fclose($this->stream);
+        return $this->method;
     }
 
     /**
-     * @param int $time
-     * @param bool $isRead
-     * @return int
+     * @return string
      */
-    public function addTimer($time, $isRead = true)
+    public function getScheme()
     {
-        if ($isRead) {
-            $this->readTimer += $time;
+        return $this->scheme;
+    }
 
-            return $this->readTimer;
-        }
-
-        $this->connTimer += $time;
-
-        return $this->connTimer;
+    /**
+     * @return string
+     */
+    public function getHost()
+    {
+        return $this->host;
     }
 
     /**
      * @return int
      */
-    public function getId()
+    public function getPort()
     {
-        return $this->id;
+        return $this->port;
     }
 
     /**
-     * @return resource
+     * @return string
      */
-    public function getStream()
+    public function getUri()
     {
-        return $this->stream;
+        return $this->uri;
     }
 
     /**
-     * @return int
+     * @return array
      */
-    public function getStreamId()
+    public function getPosts()
     {
-        return $this->streamId;
+        return $this->posts;
     }
 
     /**
-     * @return bool
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
      */
-    public function needSend()
+    public function getPost($key, $default = null)
     {
-        return $this->sendBuffer ? true : false;
+        return isset($this->posts[$key]) ? $this->posts[$key] : $default;
     }
 
-    protected static function assert($cond, $message)
+    /**
+     * @return array
+     */
+    public function getHeaders()
     {
-        if ($cond) {
-            return;
+        return $this->headers;
+    }
+
+    /**
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
+     */
+    public function getHeader($key, $default = null)
+    {
+        return isset($this->headers[$key]) ? $this->headers[$key] : $default;
+    }
+
+    /**
+     * @return string
+     */
+    public function getContent()
+    {
+        if (null === $this->content) {
+            $this->content = $this->build();
         }
 
-        throw new Exception($message);
+        return $this->content;
     }
 
-    protected static function buildHeader(array $headers)
+    protected function build()
     {
-        $header = '';
-        $fixedHeaders = array('host', 'connection', 'content-length', 'content-type');
-        foreach ($headers as $k => $v) {
-            if (in_array(strtolower($k), $fixedHeaders)) {
-                continue;
-            }
-
-            $header .= $k . ': ' . $v . "\r\n";
-        }
-
-        return $header;
-    }
-
-    protected function parseUrl()
-    {
-        $info = parse_url($this->url);
-        self::assert(false !== $info, 'Invalid url');
-
-        $scheme = strtolower($info['scheme']);
-        $isHttp = 'http' === $scheme;
-        $isHttps = 'https' === $scheme;
-        self::assert($isHttp || $isHttps, 'Only support http/https');
-
-        $host = strtolower($info['host']);
-        if (isset(self::$dnsCache[$host])) {
-            $ip = self::$dnsCache[$host];
-        } else {
-            $ip = gethostbyname($host);
-            self::assert(false !== ip2long($ip), 'Invalid host');
-
-            self::$dnsCache[$host] = $ip;
-        }
-
-        empty($info['port']) && $info['port'] = $isHttp ? 80 : 443;
-        empty($info['path']) && $info['path'] = '/';
-        empty($info['query']) && $info['query'] = '';
-
-        $this->isHttp = $isHttp;
-        $this->isHttps = $isHttps;
-        $this->scheme = $scheme;
-        $this->host = $host;
-        $this->ip = $ip;
-        $this->port = $info['port'];
-        $this->uri = $info['path'] . $info['query'];
-    }
-
-    protected function initStream()
-    {
-        if ($this->isHttps) {
-            $remote = 'tls://' . $this->ip . ':' . $this->port;
-            
-            $options = array(
-                'ssl' => array(
-                    'peer_name' => $this->host,
-                    'disable_compression' => true,
-                    'cafile' => __DIR__ . '/cacert.pem',
-                    'verify_peer' => $this->verifyCert,
-                    'verify_peer_name' => $this->verifyCert,
-                    'allow_self_signed' => !$this->verifyCert,
-                )
-            );
-            if (PHP_VERSION_ID < 50600) {
-                $options['ssl']['CN_match'] = $this->host;
-            }
-            
-            $context = stream_context_create($options);
-        } else {
-            $remote = 'tcp://' . $this->ip . ':' . $this->port;
-            $context = stream_context_create();
-        }
-
-        $fp = stream_socket_client($remote, $errNo, $errStr, $this->connTimeout, $this->streamFlag, $context);
-        self::assert(false !== $fp, 'Unable to init stream, code: ' . $errNo);
-        stream_set_blocking($fp, 0);
-
-        $this->stream = $fp;
-        $this->streamId = (int)$fp;
-    }
-
-    protected function buildHttpRequest()
-    {
-        $port = $this->isHttp && 80 === $this->port || 443 === $this->port ? '' : ':' . $this->port;
+        $port = $this->http && 80 === $this->port || 443 === $this->port ? '' : ':' . $this->port;
         $header = 'Host: ' . $this->host . $port . "\r\nConnection: keep-alive\r\n";
 
         if (self::METHOD_POST === $this->method) {
@@ -314,6 +230,25 @@ class Request
 
         $header .= self::buildHeader($this->headers);
 
-        $this->sendBuffer = "{$this->method} {$this->uri} HTTP/1.1\r\n{$header}\r\n{$data}";
+        return "{$this->method} {$this->uri} HTTP/1.1\r\n{$header}\r\n{$data}";
+    }
+
+    protected static function buildHeader(array $headers)
+    {
+        $header = '';
+        $fixedHeaders = array('host', 'connection', 'content-length', 'content-type');
+        foreach ($headers as $k => $v) {
+            if (in_array(strtolower($k), $fixedHeaders)) {
+                continue;
+            }
+
+            if (null === $v) {
+                continue;
+            }
+
+            $header .= $k . ': ' . $v . "\r\n";
+        }
+
+        return $header;
     }
 }
