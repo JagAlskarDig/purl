@@ -37,18 +37,18 @@ class StreamParser
         if (!$this->headerParsed) {
             $pos = strpos($this->buffer, "\r\n\r\n");
             if (0 === $pos) {
-                return false;
+                return Helper::RET_ERROR;
             }
 
             if (false === $pos) {
-                return null;
+                return Helper::RET_CONTINUE;
             }
 
             $this->parseHeader($data);
 
             if (!$this->chuncked) {
                 if (null === $len = $this->getHeader('Content-Length')) {
-                    return false;
+                    return Helper::RET_ERROR;
                 }
 
                 $this->packageLength = (int)$len;
@@ -59,13 +59,13 @@ class StreamParser
             if ($this->packageLength === strlen($this->buffer)) {
                 return new Result($this->version, $this->code, $this->msg, $this->headers, $this->buffer);
             } else {
-                return null;
+                return Helper::RET_CONTINUE;
             }
         }
 
         do {
             if (false === strpos($this->buffer, "\r\n")) {
-                return null;
+                return Helper::RET_CONTINUE;
             }
 
             list($size, $content) = explode("\r\n", $this->buffer, 2);
@@ -74,14 +74,14 @@ class StreamParser
             }
 
             if (strlen($content) < $size - 2) {
-                return null;
+                return Helper::RET_CONTINUE;
             }
 
             $this->body .= substr($content, 0, $size);
             $this->buffer = substr($content, $size + 2);
         } while (true);
 
-        return false;
+        return Helper::RET_ERROR;
     }
 
     protected function getHeader($key, $default = null)

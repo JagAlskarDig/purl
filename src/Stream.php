@@ -128,16 +128,20 @@ class Stream
         $len = fwrite($this->resource, $buffer);
 
         if (strlen($buffer) === $len) {
-            return $this->waitReceive();
+            $this->waitReceive();
+
+            return Helper::RET_SUCCESS;
         }
 
         if (false === $len) {
             $this->close();
-        } else {
-            $this->sendBuffer = substr($buffer, 0, $len);
+
+            return Helper::RET_ERROR;
         }
 
-        return false;
+        $this->sendBuffer = substr($buffer, 0, $len);
+
+        return Helper::RET_CONTINUE;
     }
 
     /**
@@ -147,7 +151,9 @@ class Stream
     {
         $buffer = fread($this->resource, self::READ_BUFSIZ);
         if ('' === $buffer || false === $buffer) {
-            return $this->close();
+            $this->close();
+
+            return Helper::RET_SUCCESS;
         }
 
         do {
@@ -161,15 +167,12 @@ class Stream
 
         $ret = $this->parser->tryParse($buffer);
 
-        if (null === $ret) {
-            return false;
+        if (Helper::RET_CONTINUE === $ret) {
+        } elseif (Helper::RET_ERROR === $ret) {
+            $this->close();
+        } else {
+            $this->status = self::STATUS_WAIT_SEND;
         }
-
-        if (false === $ret) {
-            return $this->close();
-        }
-
-        $this->status = self::STATUS_WAIT_SEND;
 
         return $ret;
     }
@@ -320,7 +323,5 @@ class Stream
         $this->sendBuffer = '';
         $this->status = self::STATUS_WAIT_RECEIVE;
         $this->parser = new StreamParser();
-
-        return true;
     }
 }

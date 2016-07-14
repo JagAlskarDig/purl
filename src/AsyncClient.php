@@ -106,9 +106,10 @@ class AsyncClient
              * @var Stream $stream
              */
             foreach ($this->streams as $stream) {
-                if (!$stream->isClosed()) {
-                    $r[] = $stream->getResource();
+                if ($stream->isClosed()) {
+                    continue;
                 }
+                $r[] = $stream->getResource();
             }
 
             if (!$r = $this->queryTimeout($r, $this->connTimeout)) {
@@ -117,19 +118,19 @@ class AsyncClient
 
             foreach ($r as $fp) {
                 $stream = $this->streams[(int)$fp];
-                $result = $stream->read();
+                $ret = $stream->read();
 
-                if ($stream->isClosed()) {
-                    $this->close($stream, false);
+                if (Helper::RET_CONTINUE === $ret) {
                     continue;
                 }
 
-                if (false === $result) {
+                if (Helper::RET_SUCCESS === $ret || Helper::RET_ERROR === $ret) {
+                    $this->close($stream, Helper::RET_SUCCESS === $ret);
                     continue;
                 }
 
-                if ($result instanceof Result) {
-                    call_user_func($this->callbacks[$stream->getResourceId()], $stream->getId(), $result);
+                if ($ret instanceof Result) {
+                    call_user_func($this->callbacks[$stream->getResourceId()], $stream->getId(), $ret);
                 }
                 $this->close($stream);
             }
@@ -156,6 +157,7 @@ class AsyncClient
     {
         $stream->close();
         $streamId = $stream->getResourceId();
+
         if (!$success) {
             call_user_func($this->callbacks[$streamId], $stream->getId(), null);
         }
@@ -221,12 +223,12 @@ class AsyncClient
                 $stream = $this->streams[(int)$fp];
                 $ret = $stream->send();
 
-                if ($stream->isClosed()) {
+                if (Helper::RET_ERROR === $ret) {
                     $this->close($stream, false);
                     continue;
                 }
 
-                if (true === $ret) {
+                if (Helper::RET_SUCCESS === $ret) {
                     $sentStreams[] = $stream->getId();
                 }
             }
