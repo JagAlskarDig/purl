@@ -38,10 +38,10 @@ class RequestTest extends PHPUnit_Framework_TestCase
         $this->requestIds[] = $client->addGet('http://blog.csdn.net/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
-        $this->requestIds[] = $client->addGet('http://www.163.com', array($this, 'requestCallback'),
+        $this->requestIds[] = $client->addGet('https://github.com/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
-        $this->requestIds[] = $client->addGet('https://github.com/', array($this, 'requestCallback'),
+        $this->requestIds[] = $client->addGet('http://www.163.com', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
         $client->request(array($this, 'sentCallback'));
@@ -62,6 +62,7 @@ class RequestTest extends PHPUnit_Framework_TestCase
         self::assertEquals(200, $result->getStatusCode());
         self::assertEquals('OK', $result->getStatusMsg());
         self::assertEquals('HTTP/1.1', $result->getHttpVersion());
+        echo $id, ' returned.', PHP_EOL;
 
         $this->requestCalled++;
     }
