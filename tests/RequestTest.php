@@ -38,24 +38,30 @@ class RequestTest extends PHPUnit_Framework_TestCase
         $this->requestIds[] = $client->addGet('http://blog.csdn.net/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
+        $this->requestIds[] = $client->addGet('http://www.163.com', array($this, 'requestCallback'),
+            array('Accept' => 'text/html'));
+
         $this->requestIds[] = $client->addGet('https://github.com/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
         $client->request(array($this, 'sentCallback'));
-        $this->assertCount($this->requestCalled, $this->requestIds, 'request callback missed');
+        self::assertCount($this->requestCalled, $this->requestIds, 'request callback missed');
 
         error_reporting($oldER);
     }
 
     public function sentCallback(array $ids)
     {
-        $this->assertCount(count($this->requestIds), $ids);
+        self::assertCount(count($this->requestIds), $ids);
     }
 
     public function requestCallback($id, Result $result = null)
     {
-        $this->assertTrue($id > 0);
-        $this->assertNotNull($result, 'result is null');
+        self::assertTrue($id > 0);
+        self::assertNotNull($result, 'result is null');
+        self::assertEquals(200, $result->getStatusCode());
+        self::assertEquals('OK', $result->getStatusMsg());
+        self::assertEquals('HTTP/1.1', $result->getHttpVersion());
 
         $this->requestCalled++;
     }

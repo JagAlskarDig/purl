@@ -30,11 +30,6 @@ class AsyncClient
     /**
      * @var int
      */
-    protected $streamFlag;
-
-    /**
-     * @var int
-     */
     protected $connTimeout;
 
     /**
@@ -48,11 +43,6 @@ class AsyncClient
     protected $streams = array();
 
     /**
-     * @var array
-     */
-    protected $callbacks = array();
-
-    /**
      * Client constructor.
      * @param bool $verifyCert
      * @param int $connTimeout per request connection timeout. milliseconds
@@ -63,7 +53,11 @@ class AsyncClient
         $this->verifyCert = $verifyCert;
         $this->connTimeout = $connTimeout * 1000;
         $this->readTimeout = $readTimeout * 1000;
-        $this->streamFlag = STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT;
+    }
+
+    public function __destruct()
+    {
+        $this->streams = null;
     }
 
     /**
@@ -72,7 +66,7 @@ class AsyncClient
      * @param array|null $headers
      * @return int
      */
-    public function addGet($url, $callback, array $headers = array())
+    public function addGet($url, $callback, array $headers = null)
     {
         return $this->add(Request::METHOD_GET, $url, $callback, $headers);
     }
@@ -84,7 +78,7 @@ class AsyncClient
      * @param array|null $headers
      * @return int
      */
-    public function addPost($url, $callback, array $data = array(), array $headers = array())
+    public function addPost($url, $callback, array $data = null, array $headers = null)
     {
         return $this->add(Request::METHOD_POST, $url, $callback, $headers, $data);
     }
@@ -98,13 +92,13 @@ class AsyncClient
             return;
         }
 
+        /**
+         * @var Stream $stream
+         */
         $this->send($sentCallback);
 
         do {
             $r = array();
-            /**
-             * @var Stream $stream
-             */
             foreach ($this->streams as $stream) {
                 if ($stream->isClosed()) {
                     continue;
@@ -120,51 +114,34 @@ class AsyncClient
                 $stream = $this->streams[(int)$fp];
                 $ret = $stream->read();
 
-                if (Helper::RET_CONTINUE === $ret) {
+                if (null === $ret) {
                     continue;
                 }
 
-                if (Helper::RET_SUCCESS === $ret || Helper::RET_ERROR === $ret) {
-                    $this->close($stream, Helper::RET_SUCCESS === $ret);
+                unset($this->streams[$stream->getResourceId()]);
+
+                if (false === $ret) {
                     continue;
                 }
 
-                if ($ret instanceof Result) {
-                    call_user_func($this->callbacks[$stream->getResourceId()], $stream->getId(), $ret);
-                }
-                $this->close($stream);
+                $stream->close();
             }
         } while (true);
     }
 
-    protected function add($method, $url, $callback, array $headers, array $data = null)
+    protected function add($method, $url, $callback, array $headers = null, array $data = null)
     {
         static $id = 0;
 
         $urlInfo = new UrlInfo($url);
         $https = 'https' === $urlInfo->getScheme();
-        $stream = new Stream(++$id, $urlInfo->getHost(), $urlInfo->getPort(), $this->streamFlag, $this->connTimeout,
-            $this->readTimeout, $https, $this->verifyCert);
+        $timeouts = array($this->connTimeout, $this->readTimeout);
+        $stream = new Stream(++$id, $urlInfo, $callback, $timeouts, $https, $this->verifyCert);
         $stream->addRequest(new Request($method, $urlInfo, $headers, $data));
 
         $this->streams[$stream->getResourceId()] = $stream;
-        $this->callbacks[$stream->getResourceId()] = $callback;
 
         return $id;
-    }
-
-    protected function close(Stream $stream, $success = true)
-    {
-        $stream->close();
-        $streamId = $stream->getResourceId();
-
-        if (!$success) {
-            call_user_func($this->callbacks[$streamId], $stream->getId(), null);
-        }
-
-        unset($this->streams[$streamId], $this->callbacks[$streamId]);
-
-        return true;
     }
 
     protected function queryTimeout(array $streams, $timeout, $isRead = true)
@@ -173,6 +150,9 @@ class AsyncClient
             return false;
         }
 
+        /**
+         * @var Stream $stream
+         */
         $h = $e = null;
         $originStreams = $streams;
         $timeStart = microtime(true);
@@ -185,12 +165,10 @@ class AsyncClient
         $timeSpent = ceil($timeSpent * 1000000);
 
         foreach ($originStreams as $fp) {
-            /**
-             * @var Stream $stream
-             */
             $stream = $this->streams[(int)$fp];
             if ($stream->addTimer($timeSpent, $isRead) >= $timeout) {
-                $this->close($stream, false);
+                $stream->close(true);
+                unset($this->streams[$stream->getResourceId()]);
             }
         }
 
@@ -202,13 +180,13 @@ class AsyncClient
      */
     protected function send($sentCallback = null)
     {
+        /**
+         * @var Stream $stream
+         */
         $sentStreams = array();
 
         do {
             $w = array();
-            /**
-             * @var Stream $stream
-             */
             foreach ($this->streams as $stream) {
                 if ($stream->needSend()) {
                     $w[] = $stream->getResource();
@@ -223,12 +201,12 @@ class AsyncClient
                 $stream = $this->streams[(int)$fp];
                 $ret = $stream->send();
 
-                if (Helper::RET_ERROR === $ret) {
-                    $this->close($stream, false);
+                if (false === $ret) {
+                    unset($this->streams[$stream->getResourceId()]);
                     continue;
                 }
 
-                if (Helper::RET_SUCCESS === $ret) {
+                if (true === $ret) {
                     $sentStreams[] = $stream->getId();
                 }
             }

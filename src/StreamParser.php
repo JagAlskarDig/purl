@@ -22,33 +22,76 @@ namespace Purl;
 
 class StreamParser
 {
+    /**
+     * @var string
+     */
     protected $buffer = '';
+
+    /**
+     * @var int
+     */
     protected $packageLength = 0;
+
+    /**
+     * @var bool
+     */
     protected $headerParsed = false;
 
-    protected $version, $code, $msg;
+    /**
+     * @var string
+     */
+    protected $version;
+
+    /**
+     * @var int
+     */
+    protected $code;
+
+    /**
+     * @var string
+     */
+    protected $msg;
+
+    /**
+     * @var array
+     */
     protected $headers;
+
+    /**
+     * @var string
+     */
     protected $body = '';
+
+    /**
+     * @var bool
+     */
     protected $chuncked;
 
+    /**
+     * return an instance of Result indicate success
+     * return null indicate continue
+     * return false indicate an error occurred
+     * @param $data
+     * @return bool|null|Result
+     */
     public function tryParse($data)
     {
         $this->buffer .= $data;
         if (!$this->headerParsed) {
             $pos = strpos($this->buffer, "\r\n\r\n");
             if (0 === $pos) {
-                return Helper::RET_ERROR;
+                return false;
             }
 
             if (false === $pos) {
-                return Helper::RET_CONTINUE;
+                return null;
             }
 
             $this->parseHeader($data);
 
             if (!$this->chuncked) {
                 if (null === $len = $this->getHeader('Content-Length')) {
-                    return Helper::RET_ERROR;
+                    return false;
                 }
 
                 $this->packageLength = (int)$len;
@@ -59,13 +102,13 @@ class StreamParser
             if ($this->packageLength === strlen($this->buffer)) {
                 return new Result($this->version, $this->code, $this->msg, $this->headers, $this->buffer);
             } else {
-                return Helper::RET_CONTINUE;
+                return null;
             }
         }
 
         do {
             if (false === strpos($this->buffer, "\r\n")) {
-                return Helper::RET_CONTINUE;
+                return null;
             }
 
             list($size, $content) = explode("\r\n", $this->buffer, 2);
@@ -74,14 +117,14 @@ class StreamParser
             }
 
             if (strlen($content) < $size - 2) {
-                return Helper::RET_CONTINUE;
+                return null;
             }
 
             $this->body .= substr($content, 0, $size);
             $this->buffer = substr($content, $size + 2);
         } while (true);
 
-        return Helper::RET_ERROR;
+        return false;
     }
 
     protected function getHeader($key, $default = null)

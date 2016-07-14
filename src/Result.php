@@ -58,7 +58,7 @@ class Result
     public function __construct($httpVersion, $statusCode, $statusMsg, array $headers, $body)
     {
         $this->httpVersion = $httpVersion;
-        $this->statusCode = $statusCode;
+        $this->statusCode = (int)$statusCode;
         $this->statusMsg = $statusMsg;
         $this->headers = $headers;
         $this->body = $body;

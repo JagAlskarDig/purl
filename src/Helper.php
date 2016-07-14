@@ -24,11 +24,9 @@ use Exception;
 
 class Helper
 {
-    const RET_ERROR = -1;
-    const RET_CONTINUE = null;
-    const RET_SUCCESS = 1;
-    const RET_FAILED = 0;
-
+    /**
+     * @var array
+     */
     protected static $dnsCache = array();
 
     /**

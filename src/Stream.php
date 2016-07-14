@@ -29,12 +29,39 @@ class Stream
     const STATUS_WAIT_RECEIVE = 3;
     const STATUS_CLOSED = 4;
 
+    /**
+     * @var int
+     */
     protected $id;
 
+    /**
+     * @var callable
+     */
+    protected $callback;
+
+    /**
+     * @var int
+     */
     protected $connTimeout;
+
+    /**
+     * @var int
+     */
     protected $readTimeout;
+
+    /**
+     * @var int
+     */
     protected $connTimer = 0;
+
+    /**
+     * @var int
+     */
     protected $readTimer = 0;
+
+    /**
+     * @var string
+     */
     protected $sendBuffer = '';
 
     /**
@@ -42,7 +69,14 @@ class Stream
      */
     protected $parser;
 
+    /**
+     * @var resource
+     */
     protected $resource;
+
+    /**
+     * @var int
+     */
     protected $resourceId;
 
     /**
@@ -50,8 +84,19 @@ class Stream
      */
     protected $status;
 
+    /**
+     * @var string
+     */
     protected $host;
+
+    /**
+     * @var string
+     */
     protected $ip;
+
+    /**
+     * @var int
+     */
     protected $port;
 
     /**
@@ -62,25 +107,24 @@ class Stream
     /**
      * Stream constructor.
      * @param int $id
-     * @param string $host
-     * @param int $port
-     * @param int $flag
-     * @param int $connTimeout
-     * @param int $readTimeout
+     * @param UrlInfo $urlInfo
+     * @param callable $callback
+     * @param array $timeouts connection timeout and read timeout
      * @param bool $ssl
      * @param bool $verifyCert
      */
-    public function __construct($id, $host, $port, $flag, $connTimeout, $readTimeout, $ssl = false, $verifyCert = false)
+    public function __construct($id, UrlInfo $urlInfo, $callback, array $timeouts, $ssl = false, $verifyCert = false)
     {
         $this->id = $id;
-        $this->connTimeout = $connTimeout;
-        $this->readTimeout = $readTimeout;
+        $this->callback = $callback;
+        list($this->connTimeout, $this->readTimeout) = $timeouts;
 
-        $this->host = $host;
-        $this->port = $port;
-        $this->ip = Helper::host2ip($host);
+        $this->host = $urlInfo->getHost();
+        $this->port = $urlInfo->getPort();
+        $this->ip = Helper::host2ip($this->host);
         Helper::assert($this->ip, 'Unable to init stream: Invalid host');
 
+        $flag = STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT;
         if ($ssl) {
             $remote = 'tls://' . $this->ip . ':' . $this->port;
 
@@ -104,7 +148,7 @@ class Stream
             $context = stream_context_create();
         }
 
-        $fp = stream_socket_client($remote, $errNo, $errStr, $connTimeout / 1000000, $flag, $context);
+        $fp = stream_socket_client($remote, $errNo, $errStr, $this->connTimeout / 1000000, $flag, $context);
         Helper::assert(false !== $fp, 'Unable to init stream, code: ' . $errNo);
 
         stream_set_blocking($fp, 0);
@@ -120,7 +164,10 @@ class Stream
     }
 
     /**
-     * @return bool
+     * return true indicate success
+     * return null indicate continue
+     * return false indicate an error occurred
+     * @return bool|null
      */
     public function send()
     {
@@ -130,22 +177,25 @@ class Stream
         if (strlen($buffer) === $len) {
             $this->waitReceive();
 
-            return Helper::RET_SUCCESS;
+            return true;
         }
 
         if (false === $len) {
-            $this->close();
+            $this->close(true);
 
-            return Helper::RET_ERROR;
+            return false;
         }
 
         $this->sendBuffer = substr($buffer, 0, $len);
 
-        return Helper::RET_CONTINUE;
+        return null;
     }
 
     /**
-     * @return bool
+     * return true indicate success
+     * return null indicate continue
+     * return false indicate stream closed
+     * @return bool|null
      */
     public function read()
     {
@@ -153,7 +203,7 @@ class Stream
         if ('' === $buffer || false === $buffer) {
             $this->close();
 
-            return Helper::RET_SUCCESS;
+            return false;
         }
 
         do {
@@ -167,23 +217,28 @@ class Stream
 
         $ret = $this->parser->tryParse($buffer);
 
-        if (Helper::RET_CONTINUE === $ret) {
-        } elseif (Helper::RET_ERROR === $ret) {
-            $this->close();
-        } else {
+        if ($ret instanceof Result) {
             $this->status = self::STATUS_WAIT_SEND;
+            call_user_func($this->callback, $this->id, $ret);
+
+            return true;
+        }
+
+        if (false === $ret) {
+            $this->close(true);
         }
 
         return $ret;
     }
 
     /**
+     * @param bool $failed
      * @return bool
      */
-    public function close()
+    public function close($failed = false)
     {
         if ($this->isClosed()) {
-            return false;
+            return true;
         }
 
         $ret = fclose($this->resource);
@@ -192,6 +247,10 @@ class Stream
         $this->requests = null;
         $this->parser = null;
         $this->status = self::STATUS_CLOSED;
+
+        if ($failed) {
+            call_user_func($this->callback, $this->id, null);
+        }
 
         return $ret;
     }
@@ -260,6 +319,14 @@ class Stream
     public function getId()
     {
         return $this->id;
+    }
+
+    /**
+     * @return callable
+     */
+    public function getCallback()
+    {
+        return $this->callback;
     }
 
     /**
