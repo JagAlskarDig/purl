@@ -3,6 +3,9 @@
 A asynchronous http client without php-curl extension.
 
 [![Build Status](https://travis-ci.org/pengzhile/purl.svg?branch=master)](https://travis-ci.org/pengzhile/purl)
+[![Test Status](https://php-eye.com/badge/pengzhile/purl/tested.svg?branch=master)](https://travis-ci.org/pengzhile/purl)
+[![Latest Stable Version](https://poser.pugx.org/pengzhile/purl/v/stable.png)](https://packagist.org/packages/pengzhile/purl)
+[![Total Downloads](https://poser.pugx.org/pengzhile/purl/downloads.png)](https://packagist.org/packages/pengzhile/purl)
 
 ## 特点
 * 异步请求
