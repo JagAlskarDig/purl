@@ -68,16 +68,35 @@ class StreamParser
     protected $chuncked;
 
     /**
+     * @var bool
+     */
+    protected $keepAlive;
+
+    /**
+     * @var bool
+     */
+    protected $parseComplete;
+
+    /**
      * return an instance of Result indicate success
      * return null indicate continue
      * return false indicate an error occurred
      * @param $data
+     * @param bool $isClosed
      * @return bool|null|Result
      */
-    public function tryParse($data)
+    public function tryParse($data, $isClosed = false)
     {
+        if ($this->parseComplete) {
+            return false;
+        }
+
         $this->buffer .= $data;
         if (!$this->headerParsed) {
+            if ($isClosed) {
+                return false;
+            }
+
             $pos = strpos($this->buffer, "\r\n\r\n");
             if (0 === $pos) {
                 return false;
@@ -90,20 +109,34 @@ class StreamParser
             $this->parseHeader($data);
 
             if (!$this->chuncked) {
-                if (null === $len = $this->getHeader('Content-Length')) {
+                $len = $this->getHeader('Content-Length');
+
+                if (null !== $len) {
+                    $this->packageLength = (int)$len;
+                } elseif ($this->keepAlive) {
                     return false;
                 }
-
-                $this->packageLength = (int)$len;
             }
         }
 
+        if (($this->keepAlive || $this->chuncked) && $isClosed) {
+            return false;
+        }
+
         if (!$this->chuncked) {
-            if ($this->packageLength === strlen($this->buffer)) {
-                return new Result($this->version, $this->code, $this->msg, $this->headers, $this->buffer);
-            } else {
-                return null;
+            if ($this->keepAlive) {
+                if ($this->packageLength === strlen($this->buffer)) {
+                    return $this->resultFactory();
+                }
+            } elseif ($isClosed) {
+                if (null === $this->packageLength || strlen($this->buffer) === $this->packageLength) {
+                    return $this->resultFactory();
+                }
+
+                return false;
             }
+
+            return null;
         }
 
         do {
@@ -113,7 +146,7 @@ class StreamParser
 
             list($size, $content) = explode("\r\n", $this->buffer, 2);
             if (0 === $size = hexdec($size)) {
-                return new Result($this->version, $this->code, $this->msg, $this->headers, $this->body);
+                return $this->resultFactory();
             }
 
             if (strlen($content) < $size - 2) {
@@ -127,6 +160,24 @@ class StreamParser
         return false;
     }
 
+    /**
+     * @return boolean
+     */
+    public function isKeepAlive()
+    {
+        return $this->keepAlive;
+    }
+
+    /**
+     * @return Result
+     */
+    protected function resultFactory()
+    {
+        $this->parseComplete = true;
+
+        return new Result($this->version, $this->code, $this->msg, $this->headers, $this->body);
+    }
+
     protected function getHeader($key, $default = null)
     {
         return isset($this->headers[$key]) ? $this->headers[$key] : $default;
@@ -137,7 +188,7 @@ class StreamParser
         list($headerStr, $body) = explode("\r\n\r\n", $data, 2);
 
         $headersRaw = explode("\r\n", $headerStr);
-        $responseLine = explode(' ', array_shift($headersRaw));
+        $responseLine = explode(' ', array_shift($headersRaw), 3);
         list($this->version, $this->code, $this->msg) = $responseLine;
 
         $headers = array();
@@ -149,6 +200,7 @@ class StreamParser
         $this->headers = $headers;
         $this->buffer = $body;
         $this->chuncked = 'chunked' === strtolower($this->getHeader('Transfer-Encoding'));
+        $this->keepAlive = 'keep-alive' === strtolower($this->getHeader('Connection'));
         $this->headerParsed = true;
     }
 }

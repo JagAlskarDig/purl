@@ -114,17 +114,16 @@ class AsyncClient
                 $stream = $this->streams[(int)$fp];
                 $ret = $stream->read();
 
+                if ($stream->isClosed()) {
+                    unset($this->streams[$stream->getResourceId()]);
+                }
+
                 if (null === $ret) {
                     continue;
                 }
 
-                unset($this->streams[$stream->getResourceId()]);
-
-                if (false === $ret) {
-                    continue;
-                }
-
                 $stream->close();
+                unset($this->streams[$stream->getResourceId()]);
             }
         } while (true);
     }

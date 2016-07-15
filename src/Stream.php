@@ -199,23 +199,20 @@ class Stream
      */
     public function read()
     {
-        $buffer = fread($this->resource, self::READ_BUFSIZ);
-        if ('' === $buffer || false === $buffer) {
-            $this->close();
-
-            return false;
-        }
-
+        $first = true;
+        $buffer = '';
         do {
             $ret = fread($this->resource, self::READ_BUFSIZ);
             if ('' === $ret || false === $ret) {
+                $first && $this->close();
                 break;
             }
 
+            $first = false;
             $buffer .= $ret;
         } while (true);
 
-        $ret = $this->parser->tryParse($buffer);
+        $ret = $this->parser->tryParse($buffer, $this->isClosed());
 
         if ($ret instanceof Result) {
             $this->status = self::STATUS_WAIT_SEND;
@@ -237,16 +234,15 @@ class Stream
      */
     public function close($failed = false)
     {
-        if ($this->isClosed()) {
-            return true;
+        $ret = true;
+        if (!$this->isClosed()) {
+            $ret = fclose($this->resource);
+            $this->resource = null;
+            $this->sendBuffer = null;
+            $this->requests = null;
+            $this->parser = null;
+            $this->status = self::STATUS_CLOSED;
         }
-
-        $ret = fclose($this->resource);
-        $this->resource = null;
-        $this->sendBuffer = null;
-        $this->requests = null;
-        $this->parser = null;
-        $this->status = self::STATUS_CLOSED;
 
         if ($failed) {
             call_user_func($this->callback, $this->id, null);
