@@ -126,10 +126,12 @@ class StreamParser
         if (!$this->chuncked) {
             if ($this->keepAlive) {
                 if ($this->packageLength === strlen($this->buffer)) {
+                    $this->body = $this->buffer;
                     return $this->resultFactory();
                 }
             } elseif ($isClosed) {
                 if (null === $this->packageLength || strlen($this->buffer) === $this->packageLength) {
+                    $this->body = $this->buffer;
                     return $this->resultFactory();
                 }
 

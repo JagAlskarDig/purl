@@ -22,6 +22,7 @@ namespace Purl\Tests;
 
 use PHPUnit_Framework_TestCase;
 use Purl\AsyncClient;
+use Purl\Client;
 use Purl\Result;
 
 class RequestTest extends PHPUnit_Framework_TestCase
@@ -29,7 +30,7 @@ class RequestTest extends PHPUnit_Framework_TestCase
     protected $requestIds = array();
     protected $requestCalled = 0;
 
-    public function testNewClient()
+    public function testBatchClient()
     {
         $oldER = error_reporting(-1);
 
@@ -44,13 +45,13 @@ class RequestTest extends PHPUnit_Framework_TestCase
         $this->requestIds[] = $client->addGet('http://www.163.com', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
-        $client->request(array($this, 'sentCallback'));
+        $client->request(array($this, 'sentCallbackBatch'));
         self::assertCount($this->requestCalled, $this->requestIds, 'request callback missed');
 
         error_reporting($oldER);
     }
 
-    public function sentCallback(array $ids)
+    public function sentCallbackBatch(array $ids)
     {
         self::assertCount(count($this->requestIds), $ids);
     }
@@ -62,8 +63,30 @@ class RequestTest extends PHPUnit_Framework_TestCase
         self::assertEquals(200, $result->getStatusCode());
         self::assertEquals('OK', $result->getStatusMsg());
         self::assertEquals('HTTP/1.1', $result->getHttpVersion());
+        self::assertNotEmpty($result->getBody());
         echo $id, ' returned.', PHP_EOL;
 
         $this->requestCalled++;
+    }
+
+    public function testClient()
+    {
+        $oldER = error_reporting(-1);
+        $client = new Client();
+
+        $result = $client->get('http://blog.csdn.net', array($this, 'sentCallback'), array('Accept' => 'text/html'));
+
+        self::assertNotNull($result, 'result is null');
+        self::assertEquals(200, $result->getStatusCode());
+        self::assertEquals('OK', $result->getStatusMsg());
+        self::assertEquals('HTTP/1.1', $result->getHttpVersion());
+        self::assertNotEmpty($result->getBody());
+
+        error_reporting($oldER);
+    }
+
+    public function sentCallback()
+    {
+        // request sent
     }
 }

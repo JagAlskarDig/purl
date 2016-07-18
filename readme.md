@@ -12,9 +12,10 @@ A asynchronous http client without php-curl extension.
 * 支持HTTP/HTTPS
 * 无需PHP CURL扩展
 
+### 批量请求示例
 ```php
-use purl\AsyncClient;
-use purl\Result;
+use Purl\AsyncClient;
+use Purl\Result;
 
 $requestIds = array();
 $client = new AsyncClient();
@@ -49,5 +50,21 @@ $client->request(function (array $ids) {
     // 回调中参数为请求成功发送的requestId集合
     echo 'sent ids:', print_r($ids, true), PHP_EOL;
 });
+
+```
+
+### 单个请求示例
+```php
+use Purl\Client;
+
+$client = new Client();
+
+// 发出一个get请求, 请求成功返回一个Result实例,失败返回null
+// 可以在这里指定一个回调,这个回调在所有请求已发出,但未返回时被调用,可以做点什么而不用等着返回。该回调无参数。
+$result = $client->get('http://blog.csdn.net', function () {
+    echo 'request sent', PHP_EOL;
+}, array('Accept' => 'text/html'));
+
+echo $result->getBody(), PHP_EOL;
 
 ```
