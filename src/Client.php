@@ -61,7 +61,7 @@ class Client
      * @param array|null $headers
      * @return Result|null
      */
-    public function getq($url, $sentCallback = null, array $headers = null)
+    public function get($url, $sentCallback = null, array $headers = null)
     {
         $asyncClient = new AsyncClient($this->verifyCert, $this->connTimeout, $this->readTimeout);
         $asyncClient->addGet($url, array($this, 'sentCallback'), $headers);
