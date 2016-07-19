@@ -83,7 +83,7 @@ class Parser implements IParser
      * return an instance of Response indicate success
      * return null indicate continue
      * return false indicate an error occurred
-     * @param $data
+     * @param string $data
      * @param bool $isClosed
      * @return bool|null|Response
      */
