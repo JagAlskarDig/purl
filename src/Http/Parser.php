@@ -18,9 +18,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-namespace Purl;
+namespace Purl\Http;
 
-class StreamParser
+use Purl\Interfaces\IParser;
+
+class Parser implements IParser
 {
     /**
      * @var string
@@ -78,12 +80,12 @@ class StreamParser
     protected $parseComplete;
 
     /**
-     * return an instance of Result indicate success
+     * return an instance of Response indicate success
      * return null indicate continue
      * return false indicate an error occurred
      * @param $data
      * @param bool $isClosed
-     * @return bool|null|Result
+     * @return bool|null|Response
      */
     public function tryParse($data, $isClosed = false)
     {
@@ -127,11 +129,13 @@ class StreamParser
             if ($this->keepAlive) {
                 if ($this->packageLength === strlen($this->buffer)) {
                     $this->body = $this->buffer;
+
                     return $this->resultFactory();
                 }
             } elseif ($isClosed) {
                 if (null === $this->packageLength || strlen($this->buffer) === $this->packageLength) {
                     $this->body = $this->buffer;
+
                     return $this->resultFactory();
                 }
 
@@ -163,21 +167,13 @@ class StreamParser
     }
 
     /**
-     * @return boolean
-     */
-    public function isKeepAlive()
-    {
-        return $this->keepAlive;
-    }
-
-    /**
-     * @return Result
+     * @return Response
      */
     protected function resultFactory()
     {
         $this->parseComplete = true;
 
-        return new Result($this->version, $this->code, $this->msg, $this->headers, $this->body);
+        return new Response($this->version, $this->code, $this->msg, $this->headers, $this->body);
     }
 
     protected function getHeader($key, $default = null)

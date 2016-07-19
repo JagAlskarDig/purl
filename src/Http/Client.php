@@ -18,7 +18,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-namespace Purl;
+namespace Purl\Http;
 
 class Client
 {
@@ -38,7 +38,7 @@ class Client
     protected $readTimeout;
 
     /**
-     * @var Result
+     * @var Response
      */
     protected $result;
 
@@ -59,7 +59,7 @@ class Client
      * @param string $url
      * @param callable $sentCallback
      * @param array|null $headers
-     * @return Result|null
+     * @return Response|null
      */
     public function get($url, $sentCallback = null, array $headers = null)
     {
@@ -77,7 +77,7 @@ class Client
      * @param callable $sentCallback
      * @param array|null $data
      * @param array|null $headers
-     * @return Result|null
+     * @return Response|null
      */
     public function post($url, $sentCallback = null, array $data = null, array $headers = null)
     {
@@ -90,7 +90,7 @@ class Client
         return $this->result;
     }
 
-    public function sentCallback($id, Result $result = null)
+    public function sentCallback($id, Response $result = null)
     {
         $this->result = $result;
     }

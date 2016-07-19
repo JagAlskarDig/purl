@@ -21,9 +21,9 @@
 namespace Purl\Tests;
 
 use PHPUnit_Framework_TestCase;
-use Purl\AsyncClient;
-use Purl\Client;
-use Purl\Result;
+use Purl\Http\AsyncClient;
+use Purl\Http\Client;
+use Purl\Http\Response;
 
 class RequestTest extends PHPUnit_Framework_TestCase
 {
@@ -56,7 +56,7 @@ class RequestTest extends PHPUnit_Framework_TestCase
         self::assertCount(count($this->requestIds), $ids);
     }
 
-    public function requestCallback($id, Result $result = null)
+    public function requestCallback($id, Response $result = null)
     {
         self::assertTrue($id > 0);
         self::assertNotNull($result, 'result is null');
@@ -72,6 +72,7 @@ class RequestTest extends PHPUnit_Framework_TestCase
     public function testClient()
     {
         $oldER = error_reporting(-1);
+
         $client = new Client();
 
         $result = $client->get('http://blog.csdn.net', array($this, 'sentCallback'), array('Accept' => 'text/html'));

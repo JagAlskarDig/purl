@@ -18,9 +18,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-namespace Purl;
+namespace Purl\Stream;
 
-class Stream
+use Purl\Http\Parser;
+use Purl\Interfaces\IParser;
+use Purl\Interfaces\IRequest;
+use Purl\Interfaces\IResponse;
+
+abstract class Base
 {
     const READ_BUFSIZ = 65536;
 
@@ -65,7 +70,7 @@ class Stream
     protected $sendBuffer = '';
 
     /**
-     * @var StreamParser
+     * @var IParser
      */
     protected $parser;
 
@@ -87,11 +92,6 @@ class Stream
     /**
      * @var string
      */
-    protected $host;
-
-    /**
-     * @var string
-     */
     protected $ip;
 
     /**
@@ -107,50 +107,19 @@ class Stream
     /**
      * Stream constructor.
      * @param int $id
-     * @param UrlInfo $urlInfo
-     * @param callable $callback
+     * @param string $ip
+     * @param int $port
      * @param array $timeouts connection timeout and read timeout
-     * @param bool $ssl
-     * @param bool $verifyCert
      */
-    public function __construct($id, UrlInfo $urlInfo, $callback, array $timeouts, $ssl = false, $verifyCert = false)
+    public function __construct($id, $ip, $port, array $timeouts)
     {
         $this->id = $id;
-        $this->callback = $callback;
         list($this->connTimeout, $this->readTimeout) = $timeouts;
 
-        $this->host = $urlInfo->getHost();
-        $this->port = $urlInfo->getPort();
-        $this->ip = Helper::host2ip($this->host);
-        Helper::assert($this->ip, 'Unable to init stream: Invalid host');
+        $this->ip = $ip;
+        $this->port = $port;
 
-        $flag = STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT;
-        if ($ssl) {
-            $remote = 'tls://' . $this->ip . ':' . $this->port;
-
-            $options = array(
-                'ssl' => array(
-                    'peer_name' => $this->host,
-                    'disable_compression' => true,
-                    'cafile' => __DIR__ . '/cacert.pem',
-                    'verify_peer' => $verifyCert,
-                    'verify_peer_name' => $verifyCert,
-                    'allow_self_signed' => !$verifyCert,
-                )
-            );
-            if (PHP_VERSION_ID < 50600) {
-                $options['ssl']['CN_match'] = $this->host;
-            }
-
-            $context = stream_context_create($options);
-        } else {
-            $remote = 'tcp://' . $this->ip . ':' . $this->port;
-            $context = stream_context_create();
-        }
-
-        $fp = stream_socket_client($remote, $errNo, $errStr, $this->connTimeout / 1000000, $flag, $context);
-        Helper::assert(false !== $fp, 'Unable to init stream, code: ' . $errNo);
-
+        $fp = $this->newClient();
         stream_set_blocking($fp, 0);
 
         $this->resource = $fp;
@@ -214,7 +183,7 @@ class Stream
 
         $ret = $this->parser->tryParse($buffer, $this->isClosed());
 
-        if ($ret instanceof Result) {
+        if ($ret instanceof IResponse) {
             $this->status = self::STATUS_WAIT_SEND;
             call_user_func($this->callback, $this->id, $ret);
 
@@ -270,16 +239,18 @@ class Stream
     }
 
     /**
-     * @param Request $request
+     * @param IRequest $request
+     * @param IParser $parser
+     * @param callable $callback
      * @return bool
      */
-    public function addRequest(Request $request)
+    public function addRequest(IRequest $request, IParser $parser, $callback)
     {
         if ($this->isClosed()) {
             return false;
         }
 
-        $this->requests[] = $request;
+        $this->requests[] = array($request, $parser, $callback);
 
         return true;
     }
@@ -297,13 +268,14 @@ class Stream
             return true;
         }
 
-        /**
-         * @var Request $request
-         */
-        if (null === $request = array_shift($this->requests)) {
+        if (null === $arr = array_shift($this->requests)) {
             return false;
         }
 
+        /**
+         * @var IRequest $request
+         */
+        list($request, $this->parser, $this->callback) = $arr;
         $this->sendBuffer = $request->getContent();
 
         return true;
@@ -344,14 +316,6 @@ class Stream
     /**
      * @return string
      */
-    public function getHost()
-    {
-        return $this->host;
-    }
-
-    /**
-     * @return string
-     */
     public function getIp()
     {
         return $this->ip;
@@ -385,6 +349,10 @@ class Stream
     {
         $this->sendBuffer = '';
         $this->status = self::STATUS_WAIT_RECEIVE;
-        $this->parser = new StreamParser();
     }
+
+    /**
+     * @return resource
+     */
+    abstract protected function newClient();
 }

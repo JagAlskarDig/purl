@@ -18,9 +18,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-namespace Purl;
+namespace Purl\Http;
 
-class Result
+use Purl\Interfaces\IResponse;
+
+class Response implements IResponse
 {
     /**
      * @var string

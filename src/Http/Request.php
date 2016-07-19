@@ -18,9 +18,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-namespace Purl;
+namespace Purl\Http;
 
-class Request
+use Purl\Common\UrlInfo;
+use Purl\Interfaces\IRequest;
+
+class Request implements IRequest
 {
     const USER_AGENT = 'Purl/1.0';
 

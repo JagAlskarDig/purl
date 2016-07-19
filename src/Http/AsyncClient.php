@@ -18,7 +18,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-namespace Purl;
+namespace Purl\Http;
+
+use Purl\Common\Helper;
+use Purl\Common\UrlInfo;
+use Purl\Stream\Base as Stream;
+use Purl\Stream\SSL;
+use Purl\Stream\TCP;
 
 class AsyncClient
 {
@@ -135,8 +141,15 @@ class AsyncClient
         $urlInfo = new UrlInfo($url);
         $https = 'https' === $urlInfo->getScheme();
         $timeouts = array($this->connTimeout, $this->readTimeout);
-        $stream = new Stream(++$id, $urlInfo, $callback, $timeouts, $https, $this->verifyCert);
-        $stream->addRequest(new Request($method, $urlInfo, $headers, $data));
+
+        $ip = Helper::host2ip($urlInfo->getHost());
+        if ($https) {
+            $stream = new SSL(++$id, $urlInfo->getHost(), $ip, $urlInfo->getPort(), $timeouts, $this->verifyCert);
+        } else {
+            $stream = new TCP(++$id, $ip, $urlInfo->getPort(), $timeouts);
+        }
+
+        $stream->addRequest(new Request($method, $urlInfo, $headers, $data), new Parser(), $callback);
 
         $this->streams[$stream->getResourceId()] = $stream;
 

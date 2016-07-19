@@ -14,8 +14,8 @@ A asynchronous http client without php-curl extension.
 
 ### 批量请求示例
 ```php
-use Purl\AsyncClient;
-use Purl\Result;
+use Purl\Http\AsyncClient;
+use Purl\Http\Response;
 
 $requestIds = array();
 $client = new AsyncClient();
@@ -23,23 +23,23 @@ $client = new AsyncClient();
 // 添加一个请求,添加时并不会发出请求,需要调用 $client->request 
 // 如果之后请求出错, result会为null
 // 回调中会带之前返回的$requestId, 如果你共用回调,那么这个id可以让你知道是哪个请求返回了
-$requestIds['163'] = $client->addGet('http://www.163.com/', function ($id, Result $result = null) {
+$requestIds['163'] = $client->addGet('http://www.163.com/', function ($id, Response $result = null) {
     echo $id, ': ', substr($result->getBody(), 0, 50), PHP_EOL, PHP_EOL;
 }, array('Accept' => 'text/html'));
 
-$requestIds['sina'] = $client->addGet('http://www.sina.com.cn/', function ($id, Result $result = null) {
+$requestIds['sina'] = $client->addGet('http://www.sina.com.cn/', function ($id, Response $result = null) {
     echo $id, ': ', substr($result->getBody(), 0, 50), PHP_EOL, PHP_EOL;
 }, array('Accept' => 'text/html'));
 
-$requestIds['csdn'] = $client->addGet('http://blog.csdn.net/', function ($id, Result $result = null) {
+$requestIds['csdn'] = $client->addGet('http://blog.csdn.net/', function ($id, Response $result = null) {
     echo $id, ': ', substr($result->getBody(), 0, 50), PHP_EOL, PHP_EOL;
 }, array('Accept' => 'text/html'));
 
-$requestIds['sohu'] = $client->addGet('http://www.sohu.com/', function ($id, Result $result = null) {
+$requestIds['sohu'] = $client->addGet('http://www.sohu.com/', function ($id, Response $result = null) {
     echo $id, ': ', substr($result->getBody(), 0, 50), PHP_EOL, PHP_EOL;
 }, array('Accept' => 'text/html'));
 
-$requestIds['qq'] = $client->addGet('http://www.qq.com/', function ($id, Result $result = null) {
+$requestIds['qq'] = $client->addGet('http://www.qq.com/', function ($id, Response $result = null) {
     echo $id, ': ', substr($result->getBody(), 0, 50), PHP_EOL, PHP_EOL;
 }, array('Accept' => 'text/html'));
 
@@ -55,11 +55,11 @@ $client->request(function (array $ids) {
 
 ### 单个请求示例
 ```php
-use Purl\Client;
+use Purl\Http\Client;
 
 $client = new Client();
 
-// 发出一个get请求, 请求成功返回一个Result实例,失败返回null
+// 发出一个get请求, 请求成功返回一个Response实例,失败返回null
 // 可以在这里指定一个回调,这个回调在所有请求已发出,但未返回时被调用,可以做点什么而不用等着返回。该回调无参数。
 $result = $client->get('http://blog.csdn.net', function () {
     echo 'request sent', PHP_EOL;
