@@ -20,7 +20,6 @@
 
 namespace Purl\Stream;
 
-use Purl\Http\Parser;
 use Purl\Interfaces\IParser;
 use Purl\Interfaces\IRequest;
 use Purl\Interfaces\IResponse;
