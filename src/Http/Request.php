@@ -220,19 +220,15 @@ class Request implements IRequest
         $port = $this->http && 80 === $this->port || 443 === $this->port ? '' : ':' . $this->port;
         $header = 'Host: ' . $this->host . $port . "\r\nConnection: keep-alive\r\n";
 
-        $useJson = false;
+        $data = '';
         if (self::METHOD_POST === $this->method) {
-            if ('application/json' === $this->getHeader('Content-Type')) {
-                $useJson = true;
-            }
-            $header .= 'Content-Type: application/' . ($useJson ? 'json' : 'x-www-form-urlencoded') . "\r\n";
-        }
+            $json = 'application/json' === $this->getHeader('Content-Type');
+            $header .= 'Content-Type: application/' . ($json ? 'json' : 'x-www-form-urlencoded') . "\r\n";
 
-        if ($this->posts) {
-            $data = $useJson ? json_encode($this->posts) : http_build_query($this->posts);
-            $header .= 'Content-Length: ' . strlen($data) . "\r\n";
-        } else {
-            $data = '';
+            if ($this->posts) {
+                $data = $json ? json_encode($this->posts) : http_build_query($this->posts);
+                $header .= 'Content-Length: ' . strlen($data) . "\r\n";
+            }
         }
 
         $header .= self::buildHeader($this->headers);
