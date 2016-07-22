@@ -28,9 +28,8 @@ class TCP extends Base
     {
         $flag = STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT;
         $remote = 'tcp://' . $this->ip . ':' . $this->port;
-        $context = stream_context_create();
 
-        $fp = stream_socket_client($remote, $errNo, $errStr, $this->connTimeout / 1000000, $flag, $context);
+        $fp = stream_socket_client($remote, $errNo, $errStr, 0, $flag);
         Helper::assert(false !== $fp, 'Unable to init stream, code: ' . $errNo);
 
         return $fp;

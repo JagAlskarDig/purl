@@ -21,6 +21,7 @@
 namespace Purl\Stream;
 
 use Purl\Common\Helper;
+use Purl\Interfaces\IParser;
 
 class SSL extends Base
 {
@@ -28,6 +29,11 @@ class SSL extends Base
      * @var string
      */
     protected $host;
+
+    /**
+     * @var int
+     */
+    protected $connTimeout;
 
     /**
      * @var bool
@@ -40,15 +46,17 @@ class SSL extends Base
      * @param string $host
      * @param string $ip
      * @param int $port
-     * @param array $timeouts connection timeout and read timeout
+     * @param IParser $parser
+     * @param int $connTimeout
      * @param bool $verifyCert
      */
-    public function __construct($id, $host, $ip, $port, array $timeouts, $verifyCert = false)
+    public function __construct($id, $host, $ip, $port, IParser $parser, $connTimeout, $verifyCert = false)
     {
         $this->host = $host;
+        $this->connTimeout = $connTimeout;
         $this->verifyCert = $verifyCert;
 
-        parent::__construct($id, $ip, $port, $timeouts);
+        parent::__construct($id, $ip, $port, $parser);
     }
 
     /**

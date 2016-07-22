@@ -20,6 +20,8 @@
 
 namespace Purl\Http;
 
+use Exception;
+use Purl\Common\Event;
 use Purl\Common\Helper;
 use Purl\Common\UrlInfo;
 use Purl\Stream\Base as Stream;
@@ -46,7 +48,7 @@ class AsyncClient
     /**
      * @var array
      */
-    protected $streams = array();
+    protected $sentStreams = array();
 
     /**
      * Client constructor.
@@ -59,11 +61,6 @@ class AsyncClient
         $this->verifyCert = $verifyCert;
         $this->connTimeout = $connTimeout * 1000;
         $this->readTimeout = $readTimeout * 1000;
-    }
-
-    public function __destruct()
-    {
-        $this->streams = null;
     }
 
     /**
@@ -94,138 +91,76 @@ class AsyncClient
      */
     public function request($sentCallback = null)
     {
-        if (!$this->streams) {
-            return;
+        Event::instance()->loop();
+        if ($sentCallback) {
+            call_user_func($sentCallback, $this->sentStreams);
         }
+        Event::instance()->loop();
+    }
 
+    public function sendCallback($resource, $event, array $data)
+    {
         /**
          * @var Stream $stream
          */
-        $this->send($sentCallback);
+        list($eventId, $stream) = $data;
+        if (Event::TIMEOUT === $event) {
+            $stream->closeWithFail();
 
-        do {
-            $r = array();
-            foreach ($this->streams as $stream) {
-                if ($stream->isClosed()) {
-                    continue;
-                }
-                $r[] = $stream->getResource();
-            }
+            return;
+        }
 
-            if (!$r = $this->queryTimeout($r, $this->connTimeout)) {
-                break;
-            }
+        if (null === $ret = $stream->send()) {
+            return;
+        }
 
-            foreach ($r as $fp) {
-                $stream = $this->streams[(int)$fp];
-                $ret = $stream->read();
+        if (true === $ret) {
+            $this->sentStreams[] = $stream->getId();
+            Event::instance()->onRead($resource, array($this, 'receiveCallback'), $stream, $this->readTimeout);
+        }
 
-                if ($stream->isClosed()) {
-                    unset($this->streams[$stream->getResourceId()]);
-                }
+        Event::instance()->remove($eventId);
+    }
 
-                if (null === $ret) {
-                    continue;
-                }
+    public function receiveCallback($resource, $event, array $data)
+    {
+        /**
+         * @var Stream $stream
+         */
+        list($eventId, $stream) = $data;
+        if (Event::TIMEOUT === $event) {
+            $stream->closeWithFail();
 
-                $stream->close();
-                unset($this->streams[$stream->getResourceId()]);
-            }
-        } while (true);
+            return;
+        }
+
+        if (null === $ret = $stream->read()) {
+            return;
+        }
+
+        Event::instance()->remove($eventId);
     }
 
     protected function add($method, $url, $callback, array $headers = null, array $data = null)
     {
         static $id = 0;
 
-        $urlInfo = new UrlInfo($url);
-        $https = 'https' === $urlInfo->getScheme();
-        $timeouts = array($this->connTimeout, $this->readTimeout);
+        ++$id;
+        $info = new UrlInfo($url);
+        $ip = Helper::host2ip($info->getHost());
+        $parser = new Parser();
 
-        $ip = Helper::host2ip($urlInfo->getHost());
-        if ($https) {
-            $stream = new SSL(++$id, $urlInfo->getHost(), $ip, $urlInfo->getPort(), $timeouts, $this->verifyCert);
+        if ('http' === $info->getScheme()) {
+            $stream = new TCP($id, $ip, $info->getPort(), $parser);
+        } elseif ('https' === $info->getScheme()) {
+            $stream = new SSL($id, $info->getHost(), $ip, $info->getPort(), $parser, $this->connTimeout, $this->verifyCert);
         } else {
-            $stream = new TCP(++$id, $ip, $urlInfo->getPort(), $timeouts);
+            throw new Exception('Unsupported url');
         }
 
-        $stream->addRequest(new Request($method, $urlInfo, $headers, $data), new Parser(), $callback);
-
-        $this->streams[$stream->getResourceId()] = $stream;
+        $stream->addRequest(new Request($method, $info, $headers, $data), $callback);
+        Event::instance()->onWrite($stream->getResource(), array($this, 'sendCallback'), $stream, $this->connTimeout);
 
         return $id;
-    }
-
-    protected function queryTimeout(array $streams, $timeout, $isRead = true)
-    {
-        if (!$streams) {
-            return false;
-        }
-
-        /**
-         * @var Stream $stream
-         */
-        $h = $e = null;
-        $originStreams = $streams;
-        $timeStart = microtime(true);
-        if ($isRead) {
-            stream_select($streams, $h, $e, 0, $timeout);
-        } else {
-            stream_select($h, $streams, $e, 0, $timeout);
-        }
-        $timeSpent = microtime(true) - $timeStart;
-        $timeSpent = ceil($timeSpent * 1000000);
-
-        foreach ($originStreams as $fp) {
-            $stream = $this->streams[(int)$fp];
-            if ($stream->addTimer($timeSpent, $isRead) >= $timeout) {
-                $stream->close(true);
-                unset($this->streams[$stream->getResourceId()]);
-            }
-        }
-
-        return $streams;
-    }
-
-    /**
-     * @param callable $sentCallback
-     */
-    protected function send($sentCallback = null)
-    {
-        /**
-         * @var Stream $stream
-         */
-        $sentStreams = array();
-
-        do {
-            $w = array();
-            foreach ($this->streams as $stream) {
-                if ($stream->needSend()) {
-                    $w[] = $stream->getResource();
-                }
-            }
-
-            if (!$w = $this->queryTimeout($w, $this->connTimeout, false)) {
-                break;
-            }
-
-            foreach ($w as $fp) {
-                $stream = $this->streams[(int)$fp];
-                $ret = $stream->send();
-
-                if (false === $ret) {
-                    unset($this->streams[$stream->getResourceId()]);
-                    continue;
-                }
-
-                if (true === $ret) {
-                    $sentStreams[] = $stream->getId();
-                }
-            }
-        } while (true);
-
-        if ($sentCallback) {
-            call_user_func($sentCallback, $sentStreams);
-        }
     }
 }

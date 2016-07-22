@@ -28,11 +28,6 @@ abstract class Base
 {
     const READ_BUFSIZ = 65536;
 
-    const STATUS_OPENING = 1;
-    const STATUS_WAIT_SEND = 2;
-    const STATUS_WAIT_RECEIVE = 3;
-    const STATUS_CLOSED = 4;
-
     /**
      * @var int
      */
@@ -42,26 +37,6 @@ abstract class Base
      * @var callable
      */
     protected $callback;
-
-    /**
-     * @var int
-     */
-    protected $connTimeout;
-
-    /**
-     * @var int
-     */
-    protected $readTimeout;
-
-    /**
-     * @var int
-     */
-    protected $connTimer = 0;
-
-    /**
-     * @var int
-     */
-    protected $readTimer = 0;
 
     /**
      * @var string
@@ -84,9 +59,9 @@ abstract class Base
     protected $resourceId;
 
     /**
-     * @var int
+     * @var bool
      */
-    protected $status;
+    protected $closed;
 
     /**
      * @var string
@@ -108,22 +83,21 @@ abstract class Base
      * @param int $id
      * @param string $ip
      * @param int $port
-     * @param array $timeouts connection timeout and read timeout
+     * @param IParser $parser
      */
-    public function __construct($id, $ip, $port, array $timeouts)
+    public function __construct($id, $ip, $port, IParser $parser)
     {
         $this->id = $id;
-        list($this->connTimeout, $this->readTimeout) = $timeouts;
-
         $this->ip = $ip;
         $this->port = $port;
+        $this->parser = $parser;
 
         $fp = $this->newClient();
         stream_set_blocking($fp, 0);
 
         $this->resource = $fp;
         $this->resourceId = (int)$fp;
-        $this->status = self::STATUS_WAIT_SEND;
+        $this->closed = false;
     }
 
     public function __destruct()
@@ -139,17 +113,19 @@ abstract class Base
      */
     public function send()
     {
-        $buffer = $this->sendBuffer;
-        $len = fwrite($this->resource, $buffer);
+        if (false === $buffer = $this->fetchSendBuffer()) {
+            return false;
+        }
 
+        $len = fwrite($this->resource, $buffer);
         if (strlen($buffer) === $len) {
-            $this->waitReceive();
+            $this->sendBuffer = '';
 
             return true;
         }
 
         if (false === $len) {
-            $this->close(true);
+            $this->closeWithFail();
 
             return false;
         }
@@ -183,99 +159,60 @@ abstract class Base
         $ret = $this->parser->tryParse($buffer, $this->isClosed());
 
         if ($ret instanceof IResponse) {
-            $this->status = self::STATUS_WAIT_SEND;
             call_user_func($this->callback, $this->id, $ret);
 
             return true;
         }
 
         if (false === $ret) {
-            $this->close(true);
+            $this->closeWithFail();
         }
 
         return $ret;
     }
 
     /**
-     * @param bool $failed
      * @return bool
      */
-    public function close($failed = false)
-    {
-        $ret = true;
-        if (!$this->isClosed()) {
-            $ret = fclose($this->resource);
-            $this->resource = null;
-            $this->sendBuffer = null;
-            $this->requests = null;
-            $this->parser = null;
-            $this->status = self::STATUS_CLOSED;
-        }
-
-        if ($failed) {
-            call_user_func($this->callback, $this->id, null);
-        }
-
-        return $ret;
-    }
-
-    /**
-     * @param int $time
-     * @param bool $isRead
-     * @return int
-     */
-    public function addTimer($time, $isRead = true)
-    {
-        if ($isRead) {
-            $this->readTimer += $time;
-
-            return $this->readTimer;
-        }
-
-        $this->connTimer += $time;
-
-        return $this->connTimer;
-    }
-
-    /**
-     * @param IRequest $request
-     * @param IParser $parser
-     * @param callable $callback
-     * @return bool
-     */
-    public function addRequest(IRequest $request, IParser $parser, $callback)
+    public function close()
     {
         if ($this->isClosed()) {
             return false;
         }
 
-        $this->requests[] = array($request, $parser, $callback);
+        $ret = fclose($this->resource);
+        $this->closed = true;
+        $this->resource = null;
+        $this->sendBuffer = null;
+        $this->requests = null;
+        $this->parser = null;
 
-        return true;
+        return $ret;
     }
 
     /**
      * @return bool
      */
-    public function needSend()
+    public function closeWithFail()
     {
-        if (self::STATUS_WAIT_SEND !== $this->status) {
+        $ret = $this->close();
+        call_user_func($this->callback, $this->id, null);
+
+        return $ret;
+    }
+
+    /**
+     * @param IRequest $request
+     * @param callable $callback
+     * @return bool
+     */
+    public function addRequest(IRequest $request, $callback)
+    {
+        if ($this->isClosed()) {
             return false;
         }
 
-        if ($this->sendBuffer) {
-            return true;
-        }
-
-        if (null === $arr = array_shift($this->requests)) {
-            return false;
-        }
-
-        /**
-         * @var IRequest $request
-         */
-        list($request, $this->parser, $this->callback) = $arr;
-        $this->sendBuffer = $request->getContent();
+        $this->requests[] = array($request, $callback);
 
         return true;
     }
@@ -286,14 +223,6 @@ abstract class Base
     public function getId()
     {
         return $this->id;
-    }
-
-    /**
-     * @return callable
-     */
-    public function getCallback()
-    {
-        return $this->callback;
     }
 
     /**
@@ -333,21 +262,31 @@ abstract class Base
      */
     public function isClosed()
     {
-        return self::STATUS_CLOSED === $this->status;
+        return $this->closed;
     }
 
     /**
-     * @return int
+     * @return mixed
      */
-    public function getStatus()
+    protected function fetchSendBuffer()
     {
-        return $this->status;
-    }
+        do {
+            if ($this->sendBuffer) {
+                break;
+            }
 
-    protected function waitReceive()
-    {
-        $this->sendBuffer = '';
-        $this->status = self::STATUS_WAIT_RECEIVE;
+            if (null === $arr = array_shift($this->requests)) {
+                return false;
+            }
+
+            /**
+             * @var IRequest $request
+             */
+            list($request, $this->callback) = $arr;
+            $this->sendBuffer = $request->getContent();
+        } while (false);
+
+        return $this->sendBuffer;
     }
 
     /**
