@@ -82,7 +82,7 @@ class Client
     public function post($url, $sentCallback = null, array $data = null, array $headers = null)
     {
         $asyncClient = new AsyncClient($this->verifyCert, $this->connTimeout, $this->readTimeout);
-        $asyncClient->addPost($url, array($this, 'sentCallback'), $headers, $data);
+        $asyncClient->addPost($url, array($this, 'sentCallback'), $data, $headers);
         $asyncClient->request(function () use ($sentCallback) {
             $sentCallback && call_user_func($sentCallback);
         });
