@@ -102,6 +102,7 @@ abstract class Base
 
     public function __destruct()
     {
+        $this->parser = null;
         $this->close();
     }
 
