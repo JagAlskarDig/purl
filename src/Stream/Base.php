@@ -185,7 +185,6 @@ abstract class Base
         $this->resource = null;
         $this->sendBuffer = null;
         $this->requests = null;
-        $this->parser = null;
 
         return $ret;
     }
