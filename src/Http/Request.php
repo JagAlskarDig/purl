@@ -103,7 +103,9 @@ class Request implements IRequest
 
         $this->host = $urlInfo->getHost();
         $this->port = $urlInfo->getPort();
-        $this->uri = $urlInfo->getPath() . $urlInfo->getQuery();
+
+        $query = $urlInfo->getQuery();
+        $this->uri = $urlInfo->getPath() . ($query ? '?' . $query : '');
 
         $posts && $this->posts = $posts;
         if ($headers) {
