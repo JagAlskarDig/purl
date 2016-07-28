@@ -185,7 +185,11 @@ class Parser implements IParser
 
         $headersRaw = explode("\r\n", $headerStr);
         $responseLine = explode(' ', array_shift($headersRaw), 3);
-        list($this->version, $this->code, $this->msg) = $responseLine;
+        list($this->version, $this->code) = $responseLine;
+
+        if (count($responseLine) > 2) {
+            $this->msg = $responseLine[2];
+        }
 
         $headers = array();
         foreach ($headersRaw as $headerRaw) {
