@@ -31,6 +31,11 @@ use Purl\Stream\TCP;
 class AsyncClient
 {
     /**
+     * @var Event
+     */
+    protected $event;
+
+    /**
      * @var bool
      */
     protected $verifyCert;
@@ -58,6 +63,7 @@ class AsyncClient
      */
     public function __construct($verifyCert = false, $connTimeout = 30000, $readTimeout = 30000)
     {
+        $this->event = new Event();
         $this->verifyCert = $verifyCert;
         $this->connTimeout = $connTimeout * 1000;
         $this->readTimeout = $readTimeout * 1000;
@@ -91,11 +97,11 @@ class AsyncClient
      */
     public function request($sentCallback = null)
     {
-        Event::instance()->loop();
+        $this->event->loop();
         if ($sentCallback) {
             call_user_func($sentCallback, $this->sentStreams);
         }
-        Event::instance()->loop();
+        $this->event->loop();
     }
 
     public function sendCallback($resource, $event, array $data)
@@ -116,10 +122,10 @@ class AsyncClient
 
         if (true === $ret) {
             $this->sentStreams[] = $stream->getId();
-            Event::instance()->onRead($resource, array($this, 'receiveCallback'), $stream, $this->readTimeout);
+            $this->event->onRead($resource, array($this, 'receiveCallback'), $stream, $this->readTimeout);
         }
 
-        Event::instance()->remove($eventId);
+        $this->event->remove($eventId);
     }
 
     public function receiveCallback($resource, $event, array $data)
@@ -138,7 +144,7 @@ class AsyncClient
             return;
         }
 
-        Event::instance()->remove($eventId);
+        $this->event->remove($eventId);
     }
 
     protected function add($method, $url, $callback, array $headers = null, array $data = null)
@@ -159,7 +165,7 @@ class AsyncClient
         }
 
         $stream->addRequest(new Request($method, $info, $headers, $data), $callback);
-        Event::instance()->onWrite($stream->getResource(), array($this, 'sendCallback'), $stream, $this->connTimeout);
+        $this->event->onWrite($stream->getResource(), array($this, 'sendCallback'), $stream, $this->connTimeout);
 
         return $id;
     }

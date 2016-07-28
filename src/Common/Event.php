@@ -26,8 +26,6 @@ class Event
     const READ = 2;
     const WRITE = 4;
 
-    protected static $instance;
-
     /**
      * @var bool
      */
@@ -52,18 +50,6 @@ class Event
      * @var array
      */
     protected $resources = array();
-
-    /**
-     * @return static
-     */
-    public static function instance()
-    {
-        if (null === static::$instance) {
-            static::$instance = new static();
-        }
-
-        return static::$instance;
-    }
 
     /**
      * @param resource $resource
