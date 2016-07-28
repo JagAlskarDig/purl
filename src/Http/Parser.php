@@ -113,10 +113,8 @@ class Parser implements IParser
             if (!$this->chuncked) {
                 $len = $this->getHeader('Content-Length');
 
-                if (null !== $len) {
+                if (null !== $len || $this->keepAlive) {
                     $this->packageLength = (int)$len;
-                } elseif ($this->keepAlive) {
-                    return false;
                 }
             }
         }
