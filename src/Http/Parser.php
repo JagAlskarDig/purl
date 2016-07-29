@@ -52,7 +52,7 @@ class Parser implements IParser
     /**
      * @var string
      */
-    protected $msg;
+    protected $msg = '';
 
     /**
      * @var array
