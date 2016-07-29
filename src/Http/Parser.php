@@ -108,7 +108,7 @@ class Parser implements IParser
                 return null;
             }
 
-            $this->parseHeader($data);
+            $this->parseHeader($this->buffer);
 
             if (!$this->chuncked) {
                 $len = $this->getHeader('Content-Length');
