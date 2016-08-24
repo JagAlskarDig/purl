@@ -26,6 +26,7 @@ use Purl\Interfaces\IRequest;
 class Request implements IRequest
 {
     const USER_AGENT = 'Purl/1.0';
+    const DEFAULT_CONTENT_TYPE = 'application/x-www-form-urlencoded';
 
     const METHOD_GET = 'GET';
     const METHOD_POST = 'POST';
@@ -75,6 +76,12 @@ class Request implements IRequest
      * @var array
      */
     protected $posts = array();
+
+    protected $contentTypeMap = array(
+        self::DEFAULT_CONTENT_TYPE => 'buildForm',
+        'application/xml' => 'buildXml',
+        'application/json' => 'buildJson',
+    );
 
     /**
      * @var array
@@ -224,11 +231,16 @@ class Request implements IRequest
 
         $data = '';
         if (self::METHOD_POST === $this->method) {
-            $json = 'application/json' === $this->getHeader('Content-Type');
-            $header .= 'Content-Type: application/' . ($json ? 'json' : 'x-www-form-urlencoded') . "\r\n";
+            $contentType = $this->getHeader('Content-Type');
+            if (!$contentType || !isset($this->contentTypeMap[$contentType])) {
+                $contentType = self::DEFAULT_CONTENT_TYPE;
+            }
+
+            $header .= 'Content-Type: ' . $contentType . "\r\n";
 
             if ($this->posts) {
-                $data = $json ? json_encode($this->posts) : http_build_query($this->posts);
+                $method = $this->contentTypeMap[$contentType];
+                $data = self::$method($this->posts);
                 $header .= 'Content-Length: ' . strlen($data) . "\r\n";
             }
         }
@@ -255,5 +267,34 @@ class Request implements IRequest
         }
 
         return $header;
+    }
+
+    protected static function buildForm(array $data)
+    {
+        return http_build_query($data);
+    }
+
+    protected static function buildJson(array $data)
+    {
+        return json_encode($data);
+    }
+
+    protected static function iBuildXml($data)
+    {
+        $xml = '';
+        foreach ($data as $k => $v) {
+            if (is_array($v) || is_object($v)) {
+                $v = self::iBuildXml($v);
+            }
+
+            $xml .= '<' . $k . '>' . $v . '</' . $k . '>';
+        }
+
+        return $xml;
+    }
+
+    protected static function buildXml(array $data)
+    {
+        return '<xml>' . self::iBuildXml($data) . '</xml>';
     }
 }
