@@ -176,6 +176,7 @@ class Parser implements IParser
 
     protected function getHeader($key, $default = null)
     {
+        $key = strtolower($key);
         return isset($this->headers[$key]) ? $this->headers[$key] : $default;
     }
 
@@ -194,7 +195,7 @@ class Parser implements IParser
         $headers = array();
         foreach ($headersRaw as $headerRaw) {
             list($key, $value) = explode(': ', $headerRaw, 2);
-            $headers[$key] = $value;
+            $headers[strtolower($key)] = $value;
         }
 
         $this->headers = $headers;
