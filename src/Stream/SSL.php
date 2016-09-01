@@ -76,7 +76,9 @@ class SSL extends Base
             'ssl' => array(
                 'peer_name' => $this->host,
                 'disable_compression' => true,
+                'SNI_enabled' => true,
                 'cafile' => __DIR__ . '/cacert.pem',
+                'verify_depth' => 7,
                 'verify_peer' => $this->verifyCert,
                 'verify_peer_name' => $this->verifyCert,
                 'allow_self_signed' => !$this->verifyCert,
@@ -84,6 +86,7 @@ class SSL extends Base
         );
         if (PHP_VERSION_ID < 50600) {
             $options['ssl']['CN_match'] = $this->host;
+            $options['ssl']['SNI_server_name'] = $this->host;
         }
 
         $context = stream_context_create($options);
