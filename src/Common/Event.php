@@ -179,6 +179,10 @@ class Event
 
         $timeouts = array();
         do {
+            if (0 === $this->timer) {
+                break;
+            }
+
             if (null === $key = key($this->timeouts)) {
                 break;
             }
