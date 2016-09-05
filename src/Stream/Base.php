@@ -131,7 +131,7 @@ abstract class Base
             return false;
         }
 
-        $this->sendBuffer = substr($buffer, 0, $len);
+        $this->sendBuffer = substr($buffer, $len);
 
         return null;
     }
