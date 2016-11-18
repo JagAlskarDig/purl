@@ -118,7 +118,7 @@ abstract class Base
             return false;
         }
 
-        $len = fwrite($this->resource, $buffer);
+        $len = @fwrite($this->resource, $buffer);
         if (strlen($buffer) === $len) {
             $this->sendBuffer = '';
 
