@@ -42,10 +42,6 @@ class RequestTest extends PHPUnit_Framework_TestCase
         $this->requestIds[] = $client->addGet('https://github.com/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
-        $this->requestIds[] = $client->addGet('http://cn.bing.com/', array($this, 'requestCallback'),
-            array('Accept' => 'text/html'));
-
-
         $client->request(array($this, 'sentCallbackBatch'));
         self::assertCount($this->requestCalled, $this->requestIds, 'request callback missed');
 
@@ -61,8 +57,8 @@ class RequestTest extends PHPUnit_Framework_TestCase
     {
         self::assertTrue($id > 0);
         self::assertNotNull($result, 'result is null');
-        self::assertLessThan(400, $result->getStatusCode());
-//        self::assertEquals('OK', $result->getStatusMsg());
+        self::assertEquals(200, $result->getStatusCode());
+        self::assertEquals('OK', $result->getStatusMsg());
         self::assertEquals('HTTP/1.1', $result->getHttpVersion());
         self::assertNotEmpty($result->getBody());
         echo $id, ' returned.', PHP_EOL;
