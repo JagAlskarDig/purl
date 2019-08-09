@@ -130,14 +130,14 @@ class Parser implements IParser
 
                     return $this->resultFactory();
                 }
-            } elseif ($isClosed) {
+            } else {
                 if (null === $this->packageLength || strlen($this->buffer) === $this->packageLength) {
                     $this->body = $this->buffer;
 
                     return $this->resultFactory();
                 }
 
-                return false;
+                return $isClosed ? false : null;
             }
 
             return null;
@@ -194,8 +194,8 @@ class Parser implements IParser
 
         $headers = array();
         foreach ($headersRaw as $headerRaw) {
-            list($key, $value) = explode(': ', $headerRaw, 2);
-            $headers[strtolower($key)] = $value;
+            list($key, $value) = explode(':', $headerRaw, 2);
+            $headers[strtolower($key)] = trim($value);
         }
 
         $this->headers = $headers;

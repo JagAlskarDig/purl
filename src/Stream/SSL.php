@@ -70,7 +70,7 @@ class SSL extends Base
     protected function newClient()
     {
         $flag = STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT;
-        $remote = 'tls://' . $this->ip . ':' . $this->port;
+        $remote = 'tlsv1.2://' . $this->ip . ':' . $this->port;
 
         $options = array(
             'ssl' => array(

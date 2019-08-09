@@ -36,14 +36,15 @@ class RequestTest extends PHPUnit_Framework_TestCase
 
         $client = new AsyncClient();
 
-        $this->requestIds[] = $client->addGet('http://blog.csdn.net/', array($this, 'requestCallback'),
+        $this->requestIds[] = $client->addGet('https://blog.csdn.net/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
         $this->requestIds[] = $client->addGet('https://github.com/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
 
-        $this->requestIds[] = $client->addGet('http://www.163.com', array($this, 'requestCallback'),
+        $this->requestIds[] = $client->addGet('http://cn.bing.com/', array($this, 'requestCallback'),
             array('Accept' => 'text/html'));
+
 
         $client->request(array($this, 'sentCallbackBatch'));
         self::assertCount($this->requestCalled, $this->requestIds, 'request callback missed');
@@ -75,7 +76,7 @@ class RequestTest extends PHPUnit_Framework_TestCase
 
         $client = new Client();
 
-        $result = $client->get('http://blog.csdn.net', array($this, 'sentCallback'), array('Accept' => 'text/html'));
+        $result = $client->get('https://blog.csdn.net/', array($this, 'sentCallback'), array('Accept' => 'text/html'));
 
         self::assertNotNull($result, 'result is null');
         self::assertEquals(200, $result->getStatusCode());
